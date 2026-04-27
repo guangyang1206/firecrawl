@@ -527,6 +527,8 @@ export interface SearchData {
   web?: Array<SearchResultWeb | Document>;
   news?: Array<SearchResultNews | Document>;
   images?: Array<SearchResultImages | Document>;
+  /** Number of credits consumed by this search request. */
+  creditsUsed?: number;
 }
 
 export interface CategoryOption {

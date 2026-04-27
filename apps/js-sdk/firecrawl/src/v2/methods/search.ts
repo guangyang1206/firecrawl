@@ -98,6 +98,11 @@ export async function search(
     if (data.news) out.news = transformArray<SearchResultNews>(data.news);
     if (data.images)
       out.images = transformArray<SearchResultImages>(data.images);
+    // Forward creditsUsed from the top-level response envelope.
+    // The API returns { success, data: { web, news, images }, creditsUsed } —
+    // creditsUsed lives on res.data, not inside res.data.data.
+    if (typeof res.data.creditsUsed === "number")
+      out.creditsUsed = res.data.creditsUsed;
     return out;
   } catch (err: any) {
     if (err?.isAxiosError) return normalizeAxiosError(err, "search");
