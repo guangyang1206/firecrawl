@@ -90,6 +90,16 @@ export interface FirecrawlClientOptions {
   maxRetries?: number;
   /** Exponential backoff factor for retries (optional). */
   backoffFactor?: number;
+  /**
+   * Additional HTTP headers sent with every request.
+   *
+   * Useful for self-hosted deployments that sit behind a reverse proxy or API
+   * gateway requiring custom authentication headers (e.g. `X-Api-Key`,
+   * `Proxy-Authorization`, `X-Custom-Token`).  These headers are merged with
+   * the built-in `Authorization: Bearer <apiKey>` header; if a key clashes,
+   * the entry in `customHeaders` takes precedence.
+   */
+  customHeaders?: Record<string, string>;
 }
 
 /**
@@ -121,6 +131,7 @@ export class FirecrawlClient {
       timeoutMs: options.timeoutMs,
       maxRetries: options.maxRetries,
       backoffFactor: options.backoffFactor,
+      customHeaders: options.customHeaders,
     });
   }
 

@@ -11,6 +11,25 @@ export interface HttpClientOptions {
   timeoutMs?: number;
   maxRetries?: number;
   backoffFactor?: number; // seconds factor for 0.5, 1, 2...
+  /**
+   * Additional HTTP headers sent with every request.
+   *
+   * Useful for self-hosted deployments that sit behind a reverse proxy or API
+   * gateway requiring custom authentication headers (e.g. `X-Api-Key`,
+   * `Proxy-Authorization`, `X-Custom-Token`).  These headers are merged with
+   * the built-in `Authorization: Bearer <apiKey>` header; if a key clashes,
+   * the entry in `customHeaders` takes precedence.
+   *
+   * @example
+   * ```ts
+   * const client = new FirecrawlApp({
+   *   apiKey: "fc-...",
+   *   apiUrl: "https://my.firecrawl.internal",
+   *   customHeaders: { "X-Proxy-Token": "secret" },
+   * });
+   * ```
+   */
+  customHeaders?: Record<string, string>;
 }
 
 export interface RequestOptions {
@@ -34,6 +53,10 @@ export class HttpClient {
       baseURL: this.apiUrl,
       timeout: options.timeoutMs ?? 300000,
       headers: {
+        // customHeaders are spread first so that any explicit Authorization
+        // override (for non-Bearer schemes) works; for standard API-key auth
+        // the built-in Authorization header is written last and wins.
+        ...options.customHeaders,
         Authorization: `Bearer ${this.apiKey}`,
       },
       transitional: { clarifyTimeoutError: true },
