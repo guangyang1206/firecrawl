@@ -92,6 +92,13 @@ type ScrapeOptions struct {
 	Lockdown            *bool                    `json:"lockdown,omitempty"`
 	Integration         *string                  `json:"integration,omitempty"`
 	JsonOptions         *JsonOptions             `json:"jsonOptions,omitempty"`
+	Profile             *ProfileOptions         `json:"profile,omitempty"`
+}
+
+// ProfileOptions configures a browser profile for session persistence.
+type ProfileOptions struct {
+	Name        string `json:"name"`
+	SaveChanges *bool  `json:"saveChanges,omitempty"`
 }
 
 // MarshalJSON preserves string formats while allowing object formats such as QuestionFormat.
@@ -222,3 +229,13 @@ func String(v string) *string { return &v }
 
 // Float64 returns a pointer to the given float64 value.
 func Float64(v float64) *float64 { return &v }
+
+// WithProfile sets a browser profile for session persistence.
+func WithProfile(name string, saveChanges *bool) func(*ScrapeOptions) {
+	return func(opts *ScrapeOptions) {
+		opts.Profile = &ProfileOptions{
+			Name:        name,
+			SaveChanges: saveChanges,
+		}
+	}
+}
