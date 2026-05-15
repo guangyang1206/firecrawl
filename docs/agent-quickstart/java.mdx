@@ -1,0 +1,111 @@
+# Java SDK — Agent Quickstart
+
+> **When to use:** You're building a Java/Kotlin agent (Spring Boot, Quarkus, etc.) and want to call Firecrawl's `search`, `scrape`, or `interact` endpoints.
+
+## Install
+
+Add to `pom.xml`:
+
+```xml
+<dependency>
+  <groudId>com.firecrawl</groupId>
+  <artifactId>firecrawl-java</artifactId>
+  <version>1.4.1</version>
+</dependency>
+```
+
+Or Gradle:
+
+```groovy
+implementation "com.firecrawl:firecrawl-java:1.4.1"
+```
+
+## Auth
+
+```java
+import com.firecrawl.FirecrawlClient;
+
+FirecrawlClient client = new FirecrawlClient("fc-YOUR-API-KEY");
+// Or set FIRECRAWL_API_KEY env var
+```
+
+## search
+
+Search the web and return ranked results with optional scraped content.
+
+```java
+SearchOptions opts = SearchOptions.builder()
+    .limit(5)
+    .scrapeOptions(ScrapeOptions.builder()
+        .formats(Arrays.asList("markdown"))
+        .build())
+    .build();
+
+SearchResult result = client.search("OpenAI GPT-4 pricing", opts);
+
+for (SearchResult.Item item : result.getData()) {
+    System.out.println(item.getUrl() + " => " + item.getMarkdown());
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `String` | required | Search query |
+| `limit` | `int` | `5` | Max results to return |
+| `country` | `String` | `""` | Country code (US, UK, etc.) |
+| `scrapeOptions.formats` | `List<String>` | `[]` | Content formats |
+| `timeout` | `int` | `60000` | Request timeout (ms) |
+
+## scrape
+
+Scrape a single URL and return structured content.
+
+```java
+ScrapeOptions opts = ScrapeOptions.builder()
+    .formats(Arrays.asList("markdown", "html"))
+    .onlyMainContent(true)
+    .build();
+
+ScrapeResult result = client.scrape("https://example.com", opts);
+
+System.out.println(result.getData().getMarkdown());
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `String` | required | URL to scrape |
+| `formats` | `List<String>` | `["markdown"]` | Content formats |
+| `onlyMainContent` | `boolean` | `false` | Strip nav/footer |
+| `timeout` | `int` | `60000` | Request timeout (ms) |
+
+## interact
+
+Execute JavaScript on a page and return the result.
+
+```java
+// Note: Java SDK interact() takes `code` only (no separate `prompt` parameter)
+InteractResult result = client.interact(
+    "https://example.com",
+    "document.querySelector('h1').innerText",
+    30000
+);
+
+System.out.println(result.getData().getResult());
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `String` | required | URL to interact with |
+| `code` | `String` | required | JavaScript code to execute |
+| `timeout` | `int` | `30000` | Execution timeout (ms) |
+
+## Source
+
+- SDK source: `apps/java-sdk/src/main/java/com/firecrawl/`
+- Maven Central: `com.firecrawl:firecrawl-java`

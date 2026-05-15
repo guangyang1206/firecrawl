@@ -1,0 +1,109 @@
+# Elixir SDK — Agent Quickstart
+
+> **When to use:** You're building an Elixir/Phoenix agent and want to call Firecrawl's `search`, `scrape`, or `interact` endpoints.
+
+## Install
+
+Add to `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:firecrawl, "~> 1.4.1"}
+  ]
+end
+```
+
+Then run:
+
+```bash
+mix deps.get
+```
+
+## Auth
+
+```elixir
+# config/config.exs
+config :firecrawl,
+  api_key: System.get_env("FIRECRAWL_API_KEY")
+
+# In your code
+{:ok, client} = Firecrawl.new()
+# Or pass api_key explicitly:
+{:ok, client} = Firecrawl.new(api_key: "fc-YOUR-API-KEY")
+```
+
+## search
+
+Search the web and return ranked results with optional scraped content.
+
+```elixir
+{:ok, result} = Firecrawl.search(client, "OpenAI GPT-4 pricing", %{
+  limit: 5,
+  scrape_options: %{formats: ["markdown"]}
+})
+
+Enum.each(result.data, fn item ->
+  IO.puts("#{item.url} => #{item.markdown}")
+end)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `String` | required | Search query |
+| `:limit` | `integer` | `5` | Max results to return |
+| `:country` | `String` | `""` | Country code |
+| `:scrape_options` | `map` | `%{}` | Scrape options (formats, etc.) |
+| `:timeout` | `integer` | `60000` | Request timeout (ms) |
+
+## scrape
+
+Scrape a single URL and return structured content.
+
+```elixir
+{:ok, result} = Firecrawl.scrape(client, "https://example.com", %{
+  formats: ["markdown", "html"],
+  only_main_content: true
+})
+
+IO.puts(result.data.markdown)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `String` | required | URL to scrape |
+| `:formats` | `list[String]` | `["markdown"]` | Content formats |
+| `:only_main_content` | `boolean` | `false` | Strip nav/footer |
+| `:timeout` | `integer` | `60000` | Request timeout (ms) |
+
+## interact
+
+Execute JavaScript on a page and return the result.
+
+```elixir
+# Note: Elixir SDK interact/3 takes `code` only (no separate `prompt`)
+{:ok, result} = Firecrawl.interact(
+  client,
+  "https://example.com",
+  %{code: "document.querySelector('h1').innerText", timeout: 30000}
+)
+
+IO.inspect(result.data.result)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `String` | required | URL to interact with |
+| `:code` | `String` | required | JavaScript code to execute |
+| `:timeout` | `integer` | `30000` | Execution timeout (ms) |
+
+## Source
+
+- SDK source: `apps/elixir-sdk/lib/`
+- Hex.pm: `firecrawl`

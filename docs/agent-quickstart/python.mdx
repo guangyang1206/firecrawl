@@ -1,0 +1,114 @@
+# Python SDK — Agent Quickstart
+
+> **When to use:** You're building a Python agent (LangChain, AutoGen, etc.) and want to call Firecrawl's `search`, `scrape`, or `interact` endpoints.
+
+## Install
+
+```bash
+pip install firecrawl-py
+# or
+poetry add firecrawl-py
+# or
+uv add firecrawl-py
+```
+
+## Auth
+
+```python
+from firecrawl import FirecrawlApp
+
+app = FirecrawlApp(api_key="fc-YOUR_API_KEY")
+# or set FIRECRAWL_API_KEY env var
+```
+
+## search
+
+Search the web and return ranked results with optional scraped content.
+
+```python
+# Simple search
+result = app.search("OpenAI GPT-4 pricing", limit=5)
+
+# With scrape options
+result = app.search(
+    "climate change policy",
+    limit=10,
+    scrape_options={"formats": ["markdown"]},
+)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `str` | required | Search query |
+| `limit` | `int` | `5` | Max results to return |
+| `country` | `str` | `""` | Country code (US, UK, etc.) |
+| `scrape_options` | `dict` | `None` | Scrape options (formats, etc.) |
+| `timeout` | `int` | `60000` | Request timeout (ms) |
+
+## scrape
+
+Scrape a single URL and return structured content.
+
+```python
+result = app.scrape_url(
+    "https://example.com",
+    formats=["markdown", "html"],
+    only_main_content=True,
+)
+
+print(result["markdown"])
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `str` | required | URL to scrape |
+| `formats` | `list[str]` | `["markdown"]` | Content formats |
+| `only_main_content` | `bool` | `False` | Strip navigation/footer |
+| `timeout` | `int` | `60000` | Request timeout (ms) |
+
+## interact
+
+Execute JavaScript on a page and return the result.
+
+```python
+result = app.interact(
+    url="https://example.com",
+    code="document.querySelector('h1').innerText",
+    timeout=30000,
+)
+
+print(result["result"])  # "Example Domain"
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `str` | required | URL to interact with |
+| `code` | `str` | required | JavaScript code to execute |
+| `timeout` | `int` | `30000` | Execution timeout (ms) |
+
+## Async Support
+
+The Python SDK also supports `async/await`:
+
+```python
+import asyncio
+from firecrawl import AsyncFirecrawlApp
+
+async def main():
+    app = AsyncFirecrawlApp(api_key="fc-YOUR_API_KEY")
+    result = await app.scrape_url("https://example.com")
+    print(result["markdown"])
+
+asyncio.run(main())
+```
+
+## Source
+
+- SDK source: `apps/python-sdk/firecrawl/`
+- PyPI: `firecrawl-py`

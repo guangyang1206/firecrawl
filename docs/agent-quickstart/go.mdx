@@ -1,0 +1,102 @@
+# Go SDK — Agent Quickstart
+
+> **When to use:** You're building a Go agent or service and want to call Firecrawl's `search`, `scrape`, or `interact` endpoints.
+
+## Install
+
+```bash
+go get github.com/mendableai/firecrawl-go
+```
+
+## Auth
+
+```go
+import "github.com/mendableai/firecrawl-go"
+
+client := firecrawl.NewClient("fc-YOUR-API-KEY")
+// or set FIRECRAWL_API_KEY env var
+```
+
+## search
+
+Search the web and return ranked results with optional scraped content.
+
+```go
+result, err := client.Search(ctx, "OpenAI GPT-4 pricing", &firecrawl.SearchOptions{
+    Limit: 5,
+    ScrapeOptions: &firecrawl.ScrapeOptions{
+        Formats: []string{"markdown"},
+    },
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, item := range result.Data {
+    fmt.Println(item.URL, item.Markdown)
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `string` | required | Search query |
+| `Limit` | `int` | `5` | Max results to return |
+| `Country` | `string` | `""` | Country code |
+| `ScrapeOptions.Formats` | `[]string` | `nil` | Content formats |
+| `Timeout` | `int` | `60000` | Request timeout (ms) |
+
+## scrape
+
+Scrape a single URL and return structured content.
+
+```go
+result, err := client.Scrape(ctx, "https://example.com", &firecrawl.ScrapeOptions{
+    Formats:         []string{"markdown", "html"},
+    OnlyMainContent: true,
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(result.Data.Markdown)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `string` | required | URL to scrape |
+| `Formats` | `[]string` | `["markdown"]` | Content formats |
+| `OnlyMainContent` | `bool` | `false` | Strip nav/footer |
+| `Timeout` | `int` | `60000` | Request timeout (ms) |
+
+## interact
+
+Execute JavaScript on a page and return the result.
+
+```go
+result, err := client.Interact(ctx, "https://example.com", &firecrawl.InteractOptions{
+    Code:    "document.querySelector('h1').innerText",
+    Timeout: 30000,
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Println(result.Data.Result)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `string` | required | URL to interact with |
+| `Code` | `string` | required | JavaScript code to execute |
+| `Timeout` | `int` | `30000` | Execution timeout (ms) |
+
+## Source
+
+- SDK source: `apps/go-sdk/`
+- Go package: `github.com/mendableai/firecrawl-go`

@@ -1,0 +1,112 @@
+# Node.js SDK — Agent Quickstart
+
+> **When to use:** You're building a TypeScript/JavaScript agent and want to call Firecrawl's `search`, `scrape`, or `interact` endpoints from Node or the browser.
+
+## Install
+
+```bash
+npm install @firecrawl/js-sdk
+# or
+yarn add @firecrawl/js-sdk
+# or
+pnpm add @firecrawl/js-sdk
+```
+
+## Auth
+
+```typescript
+import Firecrawl from "@firecrawl/js-sdk";
+
+const fc = new Firecrawl({
+  apiKey: "fc-YOUR_API_KEY",
+  apiUrl: "https://api.firecrawl.com", // optional, change for self-hosted
+});
+```
+
+## search
+
+Search the web and return ranked results with optional scraped content.
+
+```typescript
+// Simple search
+const result = await fc.search("OpenAI GPT-4 pricing", {
+  limit: 5,
+  scrapeOptions: { formats: ["markdown"] },
+});
+
+console.log(result.data); // SearchResult[]
+
+// With country targeting
+const result2 = await fc.search("climate change policy", {
+  limit: 10,
+  country: "US",
+  scrapeOptions: { formats: ["markdown", "html"] },
+});
+```
+
+**Parameters (confirmed from source):**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | `string` | required | Search query |
+| `limit` | `number` | `5` | Max results to return |
+| `country` | `string` | `""` | Country code (US, UK, etc.) |
+| `scrapeOptions.formats` | `string[]` | `[]` | Content formats to scrape (`markdown`, `html`, `rawHtml`, `screenshot`, `links`) |
+| `timeout` | `number` | `60000` | Request timeout (ms) |
+
+## scrape
+
+Scrape a single URL and return structured content.
+
+```typescript
+const result = await fc.scrape("https://example.com", {
+  formats: ["markdown", "html"],
+  onlyMainContent: true,
+});
+
+console.log(result.data.markdown);
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `string` | required | URL to scrape |
+| `formats` | `string[]` | `["markdown"]` | Content formats |
+| `onlyMainContent` | `boolean` | `false` | Strip navigation/footer |
+| `timeout` | `number` | `60000` | Request timeout (ms) |
+
+## interact
+
+Execute JavaScript on a page and return the result.
+
+```typescript
+const result = await fc.interact("https://example.com", {
+  code: `document.querySelector('h1').innerText`,
+  timeout: 30000,
+});
+
+console.log(result.data); // { result: "Example Domain" }
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | `string` | required | URL to interact with |
+| `code` | `string` | required | JavaScript code to execute |
+| `timeout` | `number` | `30000` | Execution timeout (ms) |
+
+## v1 Compatibility
+
+The v1 client is still available:
+
+```typescript
+const v1 = fc.v1;
+const result = await v1.search("query", { limit: 5 });
+```
+
+## Source
+
+- SDK source: `apps/js-sdk/firecrawl/src/v2/`
+- Types: `apps/js-sdk/firecrawl/src/v2/types.ts`
