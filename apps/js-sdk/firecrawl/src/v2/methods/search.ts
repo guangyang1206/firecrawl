@@ -75,14 +75,10 @@ function transformArray<ResultType>(arr: any[]): Array<ResultType | Document> {
 export async function search(
   http: HttpClient,
   request: SearchRequest,
-): Promise<SearchData> {
+): Promise<SearchResponse> {
   const payload = prepareSearchPayload(request);
   try {
-    const res = await http.post<{
-      success: boolean;
-      data?: Record<string, unknown>;
-      error?: string;
-    }>(
+    const res = await http.post<SearchResponse>(
       "/v2/search",
       payload,
       typeof request.timeout === "number"
@@ -92,13 +88,7 @@ export async function search(
     if (res.status !== 200 || !res.data?.success) {
       throwForBadResponse(res, "search");
     }
-    const data = (res.data.data || {}) as Record<string, any>;
-    const out: SearchData = {};
-    if (data.web) out.web = transformArray<SearchResultWeb>(data.web);
-    if (data.news) out.news = transformArray<SearchResultNews>(data.news);
-    if (data.images)
-      out.images = transformArray<SearchResultImages>(data.images);
-    return out;
+    return res.data;
   } catch (err: any) {
     if (err?.isAxiosError) return normalizeAxiosError(err, "search");
     throw err;

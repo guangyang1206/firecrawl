@@ -1572,6 +1572,8 @@ export type SearchResponse =
       warning?: string;
       data: Document[];
       id: string;
+      urlTraces?: Array<Record<string, unknown>>;
+      metadata?: Record<string, unknown>;
     };
 
 export type TokenUsage = {
