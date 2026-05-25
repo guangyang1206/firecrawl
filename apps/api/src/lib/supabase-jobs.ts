@@ -2,6 +2,8 @@ import type { Logger } from "winston";
 import { supabase_rr_service, supabase_service } from "../services/supabase";
 import { logger } from "./logger";
 import * as Sentry from "@sentry/node";
+import { config } from "../config";
+import { nuqPool } from "../services/worker/nuq";
 
 // ============================================================================
 // NEW TABLES: scrapes, requests, crawls, etc.
@@ -13,21 +15,53 @@ import * as Sentry from "@sentry/node";
  * @returns Scrape data or null
  */
 export const supabaseGetScrapeById = async (scrapeId: string) => {
-  const { data, error } = await supabase_rr_service
-    .from("scrapes")
-    .select("*")
-    .eq("id", scrapeId)
-    .single();
+  // Try read-replica first (cloud mode)
+  if (supabase_rr_service !== null) {
+    const { data, error } = await supabase_rr_service
+      .from("scrapes")
+      .select("*")
+      .eq("id", scrapeId)
+      .single();
 
-  if (error) {
-    return null;
+    if (!error && data) {
+      return data;
+    }
   }
 
-  if (!data) {
-    return null;
+  // Fallback 1: try primary Supabase (cloud mode, replica may be lagging)
+  if (supabase_service !== null) {
+    const { data, error } = await supabase_service
+      .from("scrapes")
+      .select("*")
+      .eq("id", scrapeId)
+      .single();
+
+    if (!error && data) {
+      return data;
+    }
   }
 
-  return data;
+  // Fallback 2: self-host mode — read directly from NUQ PostgreSQL table
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    try {
+      const result = await nuqPool.query(
+        `SELECT data FROM nuq.queue_scrape WHERE id = $1 AND status IN ('completed', 'active') LIMIT 1;`,
+        [scrapeId],
+      );
+      if (result.rows.length > 0) {
+        // data column is JSONB containing the scrape job data
+        const row = result.rows[0];
+        return {
+          id: scrapeId,
+          ...row.data,
+        };
+      }
+    } catch (err) {
+      logger.error("Error in supabaseGetScrapeById NUQ fallback", { error: err, scrapeId });
+    }
+  }
+
+  return null;
 };
 
 /**

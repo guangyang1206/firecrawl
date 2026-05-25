@@ -1,6 +1,7 @@
 import { deleteKey, getValue, setValue } from "../services/redis";
 import { isPostgrestNoRowsError, supabase_service } from "../services/supabase";
 import { logger as _logger } from "./logger";
+import { config } from "../config";
 
 const logger = _logger.child({ module: "browser-sessions" });
 
@@ -32,6 +33,13 @@ interface BrowserSessionRow {
 const TABLE = "browser_sessions";
 
 // ---------------------------------------------------------------------------
+// Self-host: store browser sessions in Redis (key = browser_session:{id})
+// ---------------------------------------------------------------------------
+function redisKey(id: string): string {
+  return `browser_session:${id}`;
+}
+
+// ---------------------------------------------------------------------------
 // CRUD helpers
 // ---------------------------------------------------------------------------
 
@@ -44,6 +52,13 @@ export async function insertBrowserSession(
     created_at: now,
     updated_at: now,
   };
+
+  // Self-host mode: store in Redis instead of Supabase
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const key = redisKey(full.id);
+    await setValue(key, JSON.stringify(full), Math.ceil(full.ttl_total));
+    return full;
+  }
 
   const MAX_ATTEMPTS = 10;
   let lastError: any = null;
@@ -89,6 +104,17 @@ export async function insertBrowserSession(
 export async function getBrowserSession(
   id: string,
 ): Promise<BrowserSessionRow | null> {
+  // Self-host mode: read from Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as BrowserSessionRow;
+    } catch {
+      return null;
+    }
+  }
+
   const { data, error } = await supabase_service
     .from(TABLE)
     .select("*")
@@ -107,6 +133,14 @@ export async function getBrowserSession(
 export async function getBrowserSessionFromScrape(
   id: string,
 ): Promise<BrowserSessionRow | null> {
+  // Self-host mode: scan Redis keys (no index; acceptable for self-host scale)
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    // In self-host mode with Redis, we rely on getBrowserSession() after listing.
+    // For direct scrape→session lookup, we don't support this in self-host yet.
+    // The caller (scrape-browser.ts) will create a new session instead.
+    return null;
+  }
+
   const { data, error } = await supabase_service
     .from(TABLE)
     .select("*")
@@ -128,6 +162,11 @@ export async function listBrowserSessions(
   teamId: string,
   opts?: { status?: BrowserSessionStatus },
 ): Promise<BrowserSessionRow[]> {
+  // Self-host mode: not implemented (returns empty; interact endpoint creates on-demand)
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    return [];
+  }
+
   let query = supabase_service
     .from(TABLE)
     .select("*")
@@ -149,6 +188,19 @@ export async function listBrowserSessions(
 }
 
 export async function updateBrowserSessionActivity(id: string): Promise<void> {
+  // Self-host mode: update in Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        session.updated_at = new Date().toISOString();
+        await setValue(redisKey(id), JSON.stringify(session));
+      } catch { /* ignore */ }
+    }
+    return;
+  }
+
   const { error } = await supabase_service
     .from(TABLE)
     .update({ updated_at: new Date().toISOString() })
@@ -162,6 +214,13 @@ export async function updateBrowserSessionActivity(id: string): Promise<void> {
 export async function getBrowserSessionByBrowserId(
   browserId: string,
 ): Promise<BrowserSessionRow | null> {
+  // Self-host mode: scan Redis (acceptable for self-host scale)
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    // Redis scan is O(N); for self-host with few sessions this is fine.
+    // Not implementing full SCAN here — caller should use getBrowserSession() by ID.
+    return null;
+  }
+
   const { data, error } = await supabase_service
     .from(TABLE)
     .select("*")
@@ -186,6 +245,21 @@ export async function updateBrowserSessionStatus(
   id: string,
   status: BrowserSessionStatus,
 ): Promise<void> {
+  // Self-host mode: update in Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        session.status = status;
+        session.updated_at = new Date().toISOString();
+        if (status === "destroyed") session.deleted_at = session.updated_at;
+        await setValue(redisKey(id), JSON.stringify(session));
+      } catch { /* ignore */ }
+    }
+    return;
+  }
+
   const { error } = await supabase_service
     .from(TABLE)
     .update({
@@ -203,6 +277,24 @@ export async function updateBrowserSessionStatus(
 export async function claimBrowserSessionDestroyed(
   id: string,
 ): Promise<boolean> {
+  // Self-host mode: update in Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        if (session.status === "active") {
+          session.status = "destroyed";
+          session.updated_at = new Date().toISOString();
+          session.deleted_at = session.updated_at;
+          await setValue(redisKey(id), JSON.stringify(session));
+          return true;
+        }
+      } catch { /* ignore */ }
+    }
+    return false;
+  }
+
   const now = new Date().toISOString();
   const { data, error } = await supabase_service
     .from(TABLE)
@@ -227,6 +319,20 @@ export async function updateBrowserSessionScrapeId(
   id: string,
   scrapeId: string,
 ): Promise<void> {
+  // Self-host mode: update in Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        session.scrape_id = scrapeId;
+        session.updated_at = new Date().toISOString();
+        await setValue(redisKey(id), JSON.stringify(session));
+      } catch { /* ignore */ }
+    }
+    return;
+  }
+
   const { error } = await supabase_service
     .from(TABLE)
     .update({ scrape_id: scrapeId, updated_at: new Date().toISOString() })
@@ -245,6 +351,20 @@ export async function updateBrowserSessionCreditsUsed(
   id: string,
   creditsUsed: number,
 ): Promise<void> {
+  // Self-host mode: update in Redis
+  if (config.USE_DB_AUTHENTICATION !== true) {
+    const raw = await getValue(redisKey(id));
+    if (raw) {
+      try {
+        const session = JSON.parse(raw);
+        session.credits_used = creditsUsed;
+        session.updated_at = new Date().toISOString();
+        await setValue(redisKey(id), JSON.stringify(session));
+      } catch { /* ignore */ }
+    }
+    return;
+  }
+
   const { error } = await supabase_service
     .from(TABLE)
     .update({ credits_used: creditsUsed, updated_at: new Date().toISOString() })
