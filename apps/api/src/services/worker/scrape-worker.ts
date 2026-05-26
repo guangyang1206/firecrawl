@@ -742,41 +742,60 @@ async function processJob(job: NuQJob<ScrapeJobSingleUrls>) {
     };
 
     if (job.data.crawl_id) {
-      const sender = await createWebhookSender({
-        teamId: job.data.team_id,
-        jobId: (job.data.crawl_id ?? job.id) as string,
-        webhook: job.data.webhook,
-        v0: Boolean(!job.data.v1),
-      });
-
-      // at this point we don't have a document, send a minimal payload to let users identify the errored URL
-      const metadata = {
-        sourceURL: job.data.url,
-      } as any;
-
-      if (sender) {
-        if (job.data.crawlerOptions !== null) {
-          sender.send(WebhookEvent.CRAWL_PAGE, {
-            success: false,
-            error: data.error.message,
-            data: [
-              {
-                metadata,
-              },
-            ],
-            scrapeId: job.id,
+      // Check if the parent crawl is cancelled. If so, don't send failed page events
+      // to avoid flooding the webhook endpoint with spurious failures for URLs
+      // that were never attempted due to cancellation.
+      let isCrawlCancelled = false;
+      try {
+        const parentCrawl = await getCrawl(job.data.crawl_id);
+        if (parentCrawl?.cancelled) {
+          isCrawlCancelled = true;
+          logger.debug("Skipping failed webhook for URL due to crawl cancellation", {
+            url: job.data.url,
+            crawlId: job.data.crawl_id,
           });
-        } else {
-          sender.send(WebhookEvent.BATCH_SCRAPE_PAGE, {
-            success: false,
-            error: data.error.message,
-            data: [
-              {
-                metadata,
-              },
-            ],
-            scrapeId: job.id,
-          });
+        }
+      } catch (error) {
+        logger.warn("Failed to check crawl cancellation status", { error });
+      }
+
+      if (!isCrawlCancelled) {
+        const sender = await createWebhookSender({
+          teamId: job.data.team_id,
+          jobId: (job.data.crawl_id ?? job.id) as string,
+          webhook: job.data.webhook,
+          v0: Boolean(!job.data.v1),
+        });
+
+        // at this point we don't have a document, send a minimal payload to let users identify the errored URL
+        const metadata = {
+          sourceURL: job.data.url,
+        } as any;
+
+        if (sender) {
+          if (job.data.crawlerOptions !== null) {
+            sender.send(WebhookEvent.CRAWL_PAGE, {
+              success: false,
+              error: data.error.message,
+              data: [
+                {
+                  metadata,
+                },
+              ],
+              scrapeId: job.id,
+            });
+          } else {
+            sender.send(WebhookEvent.BATCH_SCRAPE_PAGE, {
+              success: false,
+              error: data.error.message,
+              data: [
+                {
+                  metadata,
+                },
+              ],
+              scrapeId: job.id,
+            });
+          }
         }
       }
     }

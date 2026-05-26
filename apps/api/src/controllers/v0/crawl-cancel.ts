@@ -8,6 +8,7 @@ import { configDotenv } from "dotenv";
 import { redisEvictConnection } from "../../../src/services/redis";
 import { crawlGroup } from "../../services/worker/nuq";
 import { getScrapeZDR } from "../../lib/zdr-helpers";
+import { createWebhookSender, WebhookEvent } from "../../services/webhook/index";
 configDotenv();
 
 export async function crawlCancelController(req: Request, res: Response) {
@@ -67,6 +68,33 @@ export async function crawlCancelController(req: Request, res: Response) {
     try {
       sc.cancelled = true;
       await saveCrawl(req.params.jobId, sc);
+
+      // Send a single crawl.cancelled webhook event instead of
+      // allowing per-URL crawl.failed events to flood the endpoint.
+      // This matches the existing behavior for agent.cancelled events.
+      if (sc.webhook) {
+        try {
+          const sender = await createWebhookSender({
+            teamId: team_id,
+            jobId: req.params.jobId,
+            webhook: sc.webhook,
+            v0: true, // v0 API uses v0 webhook format
+          });
+
+          if (sender) {
+            await sender.send(WebhookEvent.CRAWL_CANCELLED, {
+              success: false,
+              error: "Crawl was cancelled by user request.",
+              remainingUrls: group ? group.jobCount - group.processedCount : undefined,
+            });
+          }
+        } catch (webhookError) {
+          logger.error("Failed to send crawl.cancelled webhook", {
+            error: webhookError,
+            crawlId: req.params.jobId,
+          });
+        }
+      }
     } catch (error) {
       logger.error(error);
     }
