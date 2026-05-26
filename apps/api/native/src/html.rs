@@ -957,7 +957,8 @@ pub async fn post_process_markdown(markdown: String) -> napi::Result<String> {
       }
     }
 
-    remove_skip_to_content_links(&out)
+    let with_links_processed = remove_skip_to_content_links(&out);
+    fix_concatenated_duplicate_words(&with_links_processed)
   })
   .await
   .map_err(|e| {
@@ -968,6 +969,63 @@ pub async fn post_process_markdown(markdown: String) -> napi::Result<String> {
   })?;
 
   Ok(res)
+}
+
+/// Fix word repetition bug: when adjacent block-level elements produce the same
+/// visible text, the HTML-to-Markdown converter may concatenate them without
+/// any whitespace separator (e.g. "FunktionalFunktional" instead of
+/// "Funktional\n\nFunktional").
+///
+/// This function detects a word that is immediately repeated with no intervening
+/// whitespace or punctuation and inserts a newline between the two occurrences.
+/// It uses a character-level scan to find patterns like `<word><word>` where
+/// the second occurrence starts right after the first with no word boundary.
+fn fix_concatenated_duplicate_words(input: &str) -> String {
+  let mut out = String::with_capacity(input.len());
+  let chars: Vec<char> = input.chars().collect();
+  let n = chars.len();
+  let mut i = 0;
+
+  while i < n {
+    // Try to find a repeated word starting at position i.
+    // A "word" here means a sequence of Unicode alphanumeric characters.
+    let mut word_end = i;
+    while word_end < n && chars[word_end].is_alphanumeric() {
+      word_end += 1;
+    }
+    let word_len = word_end - i;
+
+    // Only consider words of reasonable length (>= 3 chars)
+    if word_len >= 3 {
+      // Check if the same sequence of word characters appears immediately after word_end
+      // with no whitespace or punctuation in between.
+      let rest_start = word_end;
+      let mut repeat_end = rest_start;
+      while repeat_end < n && chars[repeat_end].is_alphanumeric() {
+        repeat_end += 1;
+      }
+      let repeat_len = repeat_end - rest_start;
+
+      if repeat_len == word_len {
+        let original_word: String = chars[i..word_end].iter().collect();
+        let repeated_word: String = chars[rest_start..repeat_end].iter().collect();
+
+        if original_word == repeated_word {
+          // Insert a blank-line separator between the two occurrences
+          out.push_str(&original_word);
+          out.push('\n');
+          out.push('\n');
+          i = repeat_end;
+          continue;
+        }
+      }
+    }
+
+    out.push(chars[i]);
+    i += 1;
+  }
+
+  out
 }
 
 fn remove_skip_to_content_links(input: &str) -> String {
