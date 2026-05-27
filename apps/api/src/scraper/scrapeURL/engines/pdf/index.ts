@@ -85,6 +85,31 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
 
       if (!isPdfBuffer(file.buffer)) {
         // downloaded content isn't a valid PDF
+        // Check if it's an HTML page (possibly with embedded PDF)
+        const contentType = file.response.headers["content-type"] ?? "";
+        const isHtml = contentType.includes("text/html") ||
+                      file.buffer.slice(0, 1024).toString("utf8").trim().toLowerCase().startsWith("<!doctype") ||
+                      file.buffer.slice(0, 1024).toString("utf8").trim().toLowerCase().startsWith("<html");
+        
+        if (isHtml) {
+          // It's an HTML page, possibly with embedded PDF
+          // Return the HTML content so it can be processed as a webpage
+          meta.logger.info("PDF URL returned HTML, treating as webpage", {
+            url: meta.rewrittenUrl ?? meta.url,
+            contentType,
+          });
+          
+          const htmlContent = file.buffer.toString("utf8");
+          return {
+            url: file.response.url,
+            statusCode: file.response.status,
+            html: Buffer.from(htmlContent).toString("base64"),
+            markdown: htmlContent,
+            contentType: "text/html",
+            proxyUsed: "basic",
+          };
+        }
+        
         if (meta.pdfPrefetch === undefined) {
           // for non-PDF URLs, this is expected, not anti-bot
           if (!meta.featureFlags.has("pdf")) {
@@ -141,6 +166,29 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
     }
 
     if (!isPdfBuffer(header.subarray(0, headerBytesRead))) {
+      // Check if the file is actually an HTML page (possibly with embedded PDF)
+      const fileBuffer = await readFile(tempFilePath);
+      const fileContent = fileBuffer.slice(0, 1024).toString("utf8").trim().toLowerCase();
+      const isHtml = fileContent.startsWith("<!doctype") || fileContent.startsWith("<html");
+      
+      if (isHtml) {
+        // It's an HTML page, possibly with embedded PDF
+        // Return the HTML content so it can be processed as a webpage
+        meta.logger.info("PDF URL returned HTML (after download), treating as webpage", {
+          url: meta.rewrittenUrl ?? meta.url,
+        });
+        
+        const htmlContent = fileBuffer.toString("utf8");
+        return {
+          url: meta.rewrittenUrl ?? meta.url,
+          statusCode: 200,
+          html: Buffer.from(htmlContent).toString("base64"),
+          markdown: htmlContent,
+          contentType: "text/html",
+          proxyUsed: "basic",
+        };
+      }
+      
       if (meta.pdfPrefetch === undefined) {
         if (!meta.featureFlags.has("pdf")) {
           throw new EngineUnsuccessfulError("pdf");
