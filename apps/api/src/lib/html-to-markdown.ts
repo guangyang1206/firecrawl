@@ -76,6 +76,7 @@ export async function parseMarkdown(
         zeroDataRetention,
       });
       markdownContent = await postProcessMarkdown(markdownContent);
+      markdownContent = fixRepeatedWords(markdownContent);
       return markdownContent;
     } catch (error) {
       contextLogger.error(
@@ -96,6 +97,7 @@ export async function parseMarkdown(
       const converter = await GoMarkdownConverter.getInstance();
       let markdownContent = await converter.convertHTMLToMarkdown(html);
       markdownContent = await postProcessMarkdown(markdownContent);
+      markdownContent = fixRepeatedWords(markdownContent);
       return markdownContent;
     }
   } catch (error) {
@@ -144,6 +146,7 @@ export async function parseMarkdown(
   try {
     let markdownContent = await turndownService.turndown(html);
     markdownContent = await postProcessMarkdown(markdownContent);
+    markdownContent = fixRepeatedWords(markdownContent);
 
     return markdownContent;
   } catch (error) {
@@ -182,4 +185,14 @@ function removeSkipToContentLinks(markdownContent: string): string {
     "",
   );
   return newMarkdownContent;
+}
+
+// Fix for #3583: remove duplicated adjacent words with no separator.
+// When HTML→Markdown conversion concatenates two identical visible-text
+// tokens (e.g. "FunktionalFunctional"), keep only the first occurrence.
+function fixRepeatedWords(markdownContent: string): string {
+  // Match a "word" (letters/numbers/hyphens) that is immediately followed
+  // by the exact same word with no whitespace or punctuation in between.
+  // e.g. "FunktionalFunktional" → "Funktional"
+  return markdownContent.replace(\b(\w+)\1\b/g, "$1");
 }
