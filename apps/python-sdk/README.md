@@ -282,7 +282,7 @@ firecrawl = Firecrawl(
 )
 
 # Or per-request
-数据 = firecrawl.scrape(
+data = firecrawl.scrape(
     'https://slow-website.com',
     formats=['markdown'],
     timeout=120
@@ -295,7 +295,7 @@ Use `include_tags` and `exclude_tags` to extract only relevant content:
 
 ```python
 # ✅ Good: Extract only main content
-数据 = firecrawl.scrape(
+data = firecrawl.scrape(
     'https://example.com/blog/post',
     formats=['markdown'],
     include_tags=['article', '.post-content'],
