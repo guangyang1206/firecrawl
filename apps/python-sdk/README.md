@@ -232,6 +232,197 @@ await start_crawl_and_watch()
 
 The SDK handles errors returned by the Firecrawl API and raises appropriate exceptions. If an error occurs during a request, an exception will be raised with a descriptive error message.
 
+```python
+from firecrawl import Firecrawl
+from firecrawl.v2.utils.error_handler import FirecrawlError
+
+firecrawl = Firecrawl(api_key="fc-YOUR_API_KEY")
+
+try:
+    data = firecrawl.scrape('https://example.com', formats=['markdown'])
+    print(data.markdown)
+except FirecrawlError as e:
+    print(f"Firecrawl API error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+## Best Practices
+
+### Rate Limiting
+
+When crawling many pages, use asynchronous crawl with polling to avoid rate limits:
+
+```python
+# ✅ Good: Use async crawl for large jobs
+crawl_job = firecrawl.start_crawl(
+    'https://example.com',
+    limit=1000,
+    scrape_options=ScrapeOptions(formats=['markdown'])
+)
+
+# Poll for status
+import time
+while True:
+    status = firecrawl.get_crawl_status(crawl_job.id)
+    if status.status in ['completed', 'failed', 'cancelled']:
+        break
+    time.sleep(30)  # Poll every 30 seconds
+```
+
+### Timeout Configuration
+
+Configure timeouts for slow-loading pages:
+
+```python
+# Increase timeout for slow websites
+firecrawl = Firecrawl(
+    api_key="fc-YOUR_API_KEY",
+    timeout=120  # 120 seconds
+)
+
+# Or per-request
+数据 = firecrawl.scrape(
+    'https://slow-website.com',
+    formats=['markdown'],
+    timeout=120
+)
+```
+
+### Selective Content Extraction
+
+Use `include_tags` and `exclude_tags` to extract only relevant content:
+
+```python
+# ✅ Good: Extract only main content
+数据 = firecrawl.scrape(
+    'https://example.com/blog/post',
+    formats=['markdown'],
+    include_tags=['article', '.post-content'],
+    exclude_tags=['nav', 'footer', '.ads', '.comments']
+)
+```
+
+### Formats Selection
+
+Choose formats based on your needs to minimize token usage:
+
+```python
+# ✅ Good: Only request what you need
+# For LLM processing: markdown is enough
+doc = firecrawl.scrape(url, formats=['markdown'])
+
+# For data extraction: add structured JSON
+from pydantic import BaseModel
+
+class Article(BaseModel):
+    title: str
+    author: str
+    date: str
+
+data = firecrawl.extract(
+    urls=['https://example.com/article'],
+    prompt="Extract article metadata",
+    schema=Article
+)
+```
+
+### Error Recovery
+
+Implement retry logic for production use:
+
+```python
+import time
+from firecrawl.v2.utils.error_handler import FirecrawlError
+
+def scrape_with_retry(url: str, max_retries: int = 3):
+    for attempt in range(max_retries):
+        try:
+            return firecrawl.scrape(url, formats=['markdown'])
+        except FirecrawlError as e:
+            if "rate_limit" in str(e).lower():
+                wait_time = 2 ** attempt  # Exponential backoff
+                print(f"Rate limited. Waiting {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            raise  # Re-raise non-rate-limit errors
+    raise Exception(f"Failed after {max_retries} retries")
+```
+
+### Self-Hosted Instances
+
+For self-hosted Firecrawl instances, disable API key requirement:
+
+```python
+# ✅ Good: Self-hosted instance
+firecrawl = Firecrawl(
+    api_url="http://localhost:3002",
+    # No api_key needed for self-hosted
+)
+
+data = firecrawl.scrape('https://example.com')
+```
+
+## Common Issues & Solutions
+
+### Issue: "API key required" error
+
+**Solution**: Set `FIRECRAWL_API_KEY` environment variable or pass `api_key` parameter:
+
+```bash
+export FIRECRAWL_API_KEY="fc-your-key"
+```
+
+Or in code:
+
+```python
+firecrawl = Firecrawl(api_key="fc-YOUR_API_KEY")
+```
+
+### Issue: Timeout on slow websites
+
+**Solution**: Increase timeout or use `wait_for` option:
+
+```python
+data = firecrawl.scrape(
+    'https://slow-website.com',
+    formats=['markdown'],
+    timeout=120,
+    wait_for=10000  # Wait 10s for page to load
+)
+```
+
+### Issue: Missing content from JS-heavy websites
+
+**Solution**: Enable JS rendering with `actions`:
+
+```python
+from firecrawl.v2.types import WaitAction
+
+data = firecrawl.scrape(
+    'https://spa-website.com',
+    formats=['markdown'],
+    actions=[WaitAction(time=5000)]  # Wait 5s for JS to render
+)
+```
+
+### Issue: Too many requests timing out
+
+**Solution**: Use batch scrape for multiple URLs:
+
+```python
+# ✅ Good: Batch scrape for multiple URLs
+batch_job = firecrawl.start_batch_scrape(
+    urls=['https://example1.com', 'https://example2.com', ...],
+    scrape_options=ScrapeOptions(formats=['markdown'])
+)
+
+# Poll for completion
+while not batch_job.is_complete():
+    time.sleep(10)
+    batch_job = firecrawl.get_batch_scrape_status(batch_job.id)
+```
+
 ## Async Class
 
 For async operations, you can use the `AsyncFirecrawl` class. Its methods mirror the `Firecrawl` class, but you `await` them.
