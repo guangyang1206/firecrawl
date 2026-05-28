@@ -179,6 +179,26 @@ export async function fireEngineCheckStatus(
   const failedParse = failedSchema.safeParse(status);
 
   if (successParse.success) {
+    // Fix: detect captcha / bot-detection pages even when pageStatusCode = 200.
+    // Google and other sites return 200 OK with a CAPTCHA challenge HTML;
+    // treat those as a scrape failure so the caller gets an honest error
+    // instead of a "success" payload filled with CAPTCHA markup.
+    const contentLower = (successParse.data.content ?? "").toLowerCase();
+    const isCaptchaPage =
+      contentLower.includes("captcha") ||
+      contentLower.includes("sorry") ||
+      contentLower.includes("unusual traffic") ||
+      contentLower.includes("robot") ||
+      contentLower.includes("please verify") ||
+      contentLower.includes("browser check");
+
+    if (isCaptchaPage) {
+      logger.debug("Scrape returned a CAPTCHA/bot-detection page", { jobId, pageStatusCode: successParse.data.pageStatusCode });
+      throw new EngineError("Scrape failed: target site returned a CAPTCHA or bot-detection page (status " + successParse.data.pageStatusCode + ")", {
+        cause: { jobId, pageStatusCode: successParse.data.pageStatusCode },
+      });
+    }
+
     // Check if this is an unsupported media type error (e.g., binary file)
     if (
       successParse.data.pageStatusCode === 415 &&
