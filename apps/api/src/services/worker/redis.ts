@@ -59,8 +59,8 @@ type ScriptHashes = {
 const scripts: ScriptHashes = {} as ScriptHashes;
 
 const redis = new IORedis(config.REDIS_URL!, {
-  lazyConnect: true,
-  maxRetriesPerRequest: null,
+  lazyConnect: false,
+  maxRetriesPerRequest: 3,
   enableReadyCheck: false,
   enableAutoPipelining: true,
 });

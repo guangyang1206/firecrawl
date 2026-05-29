@@ -136,8 +136,16 @@ import { initializeEngineForcing } from "../../scraper/WebScraper/utils/engine-f
 
   _logger.info("NuQ worker shutting down");
 
+  try {
+    await redis.quit();
+    _logger.info("NuQ worker Redis connection closed");
+  } catch (e) {
+    _logger.warn("NuQ worker error closing Redis", { error: e });
+  }
+
   server.close(async () => {
     await scrapeQueue.shutdown();
+    await redis.quit().catch(() => {});
     _logger.info("NuQ worker shut down");
     process.exit(0);
   });

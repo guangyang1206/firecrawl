@@ -55,6 +55,13 @@ const reconcilerJobsRecoveredTotal = new Counter({
     isShuttingDown = true;
     _logger.info("NuQ reconciler worker shutting down");
 
+    try {
+      await redis.quit();
+      _logger.info("NuQ reconciler Redis connection closed");
+    } catch (e) {
+      _logger.warn("NuQ reconciler error closing Redis", { error: e });
+    }
+
     while (reconcilerInFlight) {
       _logger.info("Waiting for in-flight reconciliation to complete...");
       await new Promise(resolve => setTimeout(resolve, 1000));
