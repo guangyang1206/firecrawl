@@ -334,6 +334,17 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
         if (error instanceof PDFOCRRequiredError) {
           throw error;
         }
+        // Gracefully handle "Invalid PDF structure" errors (e.g. embedded PDF
+        // pages that serve HTML instead of a raw PDF blob). Fall back to the
+        // next engine so the URL can be scraped as HTML.
+        const errMsg = String((error as any)?.message ?? error);
+        if (errMsg.includes("Invalid PDF structure") || errMsg.includes("Invalid PDF")) {
+          meta.logger.warn("processPdf: not a real PDF, falling back to HTML scrape", {
+            error,
+            url: meta.rewrittenUrl ?? meta.url,
+          });
+          throw new EngineUnsuccessfulError("pdf");
+        }
         extractAndEmitNativeLogs(error, meta.logger, "pdf.process");
         logger.warn("processPdf failed, falling back to MU/PdfParse", {
           error,
