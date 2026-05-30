@@ -86,6 +86,16 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
       );
 
       if (!isPdfBuffer(file.buffer)) {
+        // Check if the response is actually HTML (e.g. a web page with an
+        // embedded PDF, served from a .pdf URL). If so, signal the engine
+        // waterfall to fall back to an HTML-capable engine instead of
+        // treating it as an anti-bot failure.
+        const contentType = file.response.headers.get("content-type") ?? "";
+        const isHtml = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
+        if (isHtml) {
+          throw new EngineUnsuccessfulError("pdf");
+        }
+
         // downloaded content isn't a valid PDF
         if (meta.pdfPrefetch === undefined) {
           // for non-PDF URLs, this is expected, not anti-bot
@@ -144,6 +154,15 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
     }
 
     if (!isPdfBuffer(header.subarray(0, headerBytesRead))) {
+      // Check if the response is actually HTML (e.g. a web page with an
+      // embedded PDF, served from a .pdf URL). If so, signal the engine
+      // waterfall to fall back to an HTML-capable engine.
+      const contentType = response.headers.get("content-type") ?? "";
+      const isHtml = contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
+      if (isHtml) {
+        throw new EngineUnsuccessfulError("pdf");
+      }
+
       if (meta.pdfPrefetch === undefined) {
         if (!meta.featureFlags.has("pdf")) {
           throw new EngineUnsuccessfulError("pdf");
