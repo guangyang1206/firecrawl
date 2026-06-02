@@ -224,22 +224,21 @@ describeIf(ALLOW_TEST_SUITE_WEBSITE)("Crawl tests", () => {
   //     }
   // }, 300000);
 
-  // TEMP: Flaky
-  // it.concurrent("discovers URLs properly when maxDiscoveryDepth is provided", async () => {
-  //     const res = await crawl({
-  //         url: base,
-  //         ignoreSitemap: true,
-  //         maxDiscoveryDepth: 1,
-  //         limit: 10,
-  //     });
-  //     expect(res.success).toBe(true);
-  //     if (res.success) {
-  //         expect(res.data.length).toBeGreaterThan(1);
-  //         for (const page of res.data) {
-  //             expect(page.metadata.url ?? page.metadata.sourceURL).not.toMatch(/^https:\/\/(www\.)?firecrawl\.dev\/blog\/.+$/);
-  //         }
-  //     }
-  // }, 300000);
+  it.concurrent("discovers URLs properly when maxDiscoveryDepth is provided", async () => {
+    const res = await crawl({
+        url: base,
+        ignoreSitemap: true,
+        maxDiscoveryDepth: 1,
+        limit: 10,
+    });
+    expect(res.success).toBe(true);
+    if (res.success) {
+        expect(res.data.length).toBeGreaterThan(1);
+        for (const page of res.data) {
+            expect(page.metadata.url ?? page.metadata.sourceURL).not.toMatch(/^https:\/\/(www\.)?firecrawl\.dev\/blog\/.+$/);
+        }
+    }
+  }, 300000);
 
   it.concurrent(
     "crawlEntireDomain parameter works",
