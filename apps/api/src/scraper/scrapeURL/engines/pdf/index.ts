@@ -127,6 +127,25 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
           PDF_DOWNLOAD_MAX_FILE_SIZE,
         );
 
+  // --- Embedded PDF Content-Type detection (Issue #839) ---
+  // URLs ending in .pdf may actually serve HTML pages (embedded PDFs).
+  // Check the Content-Type header: if it indicates HTML, bail out and
+  // let the engine waterfall fall back to the HTML scraper.
+  const contentType = response.headers.get("content-type") ?? "";
+  const isHtmlResponse = /text\/html|application\/xhtml\+xml/i.test(contentType);
+  if (isHtmlResponse) {
+    meta.logger?.warn("PDF URL returned HTML content, falling back to HTML engine", {
+      url: meta.rewrittenUrl ?? meta.url,
+      contentType,
+    });
+    if (meta.pdfPrefetch === undefined) {
+      throw new EngineUnsuccessfulError("pdf");
+    } else {
+      throw new PDFPrefetchFailed();
+    }
+  }
+  // --- End embedded PDF detection ---
+
   try {
     // Validate the downloaded file is actually a PDF by checking magic bytes
     const header = Buffer.alloc(PDF_SNIFF_WINDOW);
