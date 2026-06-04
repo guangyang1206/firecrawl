@@ -39,7 +39,7 @@ import { reconcilePageCountWithFirePdf, scrapePDFWithFirePDF } from "./firePDF";
 import { scrapePDFWithFirePDFAsync } from "./fire-pdf/async";
 import { scrapePDFWithParsePDF } from "./pdfParse";
 import { captureExceptionWithZdrCheck } from "../../../../services/sentry";
-import { isPdfBuffer, PDF_SNIFF_WINDOW } from "./pdfUtils";
+import { isPdfBuffer, PDF_SNIFF_WINDOW, shouldRemovePdfFeatureForContentType } from "./pdfUtils";
 import { comparePdfOutputs } from "./shadowComparison";
 
 /** Check if the PDF is eligible for Rust extraction, returning a rejection reason or null. */
@@ -86,6 +86,12 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
       );
 
       if (!isPdfBuffer(file.buffer)) {
+        // If the response content-type indicates HTML/text, this is an
+        // embedded-PDF page (URL ends with .pdf but server returned HTML).
+        // Drop the pdf feature so the scrape loop retries with HTML engines.
+        if (shouldRemovePdfFeatureForContentType(file.response.headers['content-type'] as string | undefined ?? null)) {
+          throw new RemoveFeatureError(["pdf"]);
+        }
         // downloaded content isn't a valid PDF
         if (meta.pdfPrefetch === undefined) {
           // for non-PDF URLs, this is expected, not anti-bot
@@ -144,6 +150,11 @@ export async function scrapePDF(meta: Meta): Promise<EngineScrapeResult> {
     }
 
     if (!isPdfBuffer(header.subarray(0, headerBytesRead))) {
+      // If the response content-type indicates HTML/text, this is an
+      // embedded-PDF page — drop the pdf feature and let the loop retry.
+      if (shouldRemovePdfFeatureForContentType(response.headers['content-type'] as string | undefined ?? null)) {
+        throw new RemoveFeatureError(["pdf"]);
+      }
       if (meta.pdfPrefetch === undefined) {
         if (!meta.featureFlags.has("pdf")) {
           throw new EngineUnsuccessfulError("pdf");
