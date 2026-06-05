@@ -352,6 +352,7 @@ export interface ExtractParams<LLMSchema extends zt.ZodSchema = any> {
   showSources?: boolean;
   scrapeOptions?: CrawlScrapeOptions;
   agent?: AgentOptionsExtract;
+  webhook?: string | { url: string; headers?: Record<string, string>; metadata?: Record<string, string>; events?: Array<"completed" | "failed" | "page" | "started"> } | null;
 }
 
 /**
